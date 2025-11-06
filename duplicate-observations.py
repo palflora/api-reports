@@ -2,6 +2,11 @@ import json
 import datetime
 import requests
 
+# In an older version of Observer Pro for iOS there was an error where 
+# observations were being uploaded to the server more than once
+# this script was developed to find these duplicates so they can 
+# be eliminated
+
 # Prompt the user for their API key
 api_key = input("Please enter your Calflora-API-Key: ")
  
