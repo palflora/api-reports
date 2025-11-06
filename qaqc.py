@@ -7,23 +7,22 @@ import re
 print('Running QA/QC tests...')
 # Prompt the user for their API key
 api_key = input("Please enter your Calflora-API-Key: ")
-#api_key = 'key'
- 
 
-# Specify the file path and name
-#savejsonfile = input("Enter the file path (e.g., /path/to/observations.json): ")
  
-grpID=140
+grpID=162 # 162 = Weed Manager Demonstration group
 headers = {
     'accept': 'application/geo+json',
     'X-API-Key': api_key
 }
 
+# Set variables to be used below
 reportview=polyID=prjID=observerstr=None
 projectname=polygonname=''
+
+# prompt user for how to limit and sort the report results
 while(reportview!='user' and reportview!='project' and reportview!='preserve'):
     reportview = input("How would you like reports organized (user, project, preserve): ")
-
+# then follow up on previous question to get specific user, project or polygon to report on
 if(reportview=='user'):
     observerstr = input("If you want to limit by observer name, you can enter a partial name here (hit return for all): ")
 elif(reportview=='project'):
@@ -63,14 +62,10 @@ elif(reportview=='preserve'):
     # Check if the request was successful
     if response.status_code == 200:
         regionstouse={}
-        polyID=""
-        #while( not prj_partial):
-        #    prj_partial = input("Please enter project name (partial OK): ")    
+        polyID=""  
         allregions=response.json()
-        #print(allregions)
         for p in allregions:
             if p["ugroup"]==grpID:
-                #if 'buffered' in p["name"]:
                 print(p["id"] + ' => ' + p["name"])
         while( not polyID):
             validpolyID = False
@@ -85,26 +80,19 @@ elif(reportview=='preserve'):
         print(f"Error: {response.status_code}")
     print("You selected "+polyID+": "+polygonname)
 
-# function to ensure date is valid and in ISO format
-#def validate(date_text):
-#    try:
-#        datetime.date.fromisoformat(date_text)
-#    except ValueError:
-#       raise ValueError("Incorrect data format, should be YYYY-MM-DD")
-# couldn't figure out error handling on this
-
 # class to build a nested dictionary
 class AutoDict(dict):
     def __missing__(self, k):
         self[k] = AutoDict()
         return self[k]
 
-# Get taxon
+# Get list of weed taxon
 url = 'https://api.calflora.org/plantlists/px2896'
 params = {
     'includePlants': 'true',
 }
 response = requests.get(url, params=params, headers=headers)
+# check response is valid
 if response.status_code == 200:
     weeds=response.json()
     ocweednames=set()
@@ -113,39 +101,19 @@ if response.status_code == 200:
 else:
     print(f"Error: {response.status_code}")
 
-#keep prompting for date until you get input
+# keep prompting for date until you get input
 dateafter=''
 while(not dateafter):
 	dateafter = input("Start date for finding errors (YYYY-MM-DD): ")
 
+# create folders to store results in like "/output/YYYY-MM-DD/"
 if not os.path.exists('output'):
     os.mkdir('output')
 if not os.path.exists('output/'+dateafter):
     os.mkdir('output/'+dateafter)
 downloadpath='output/'+dateafter
 
-
-# Get Calflora data
-url = 'https://api.calflora.org/observations'
-params = {
-    #'taxon': 'Cynara cardunculus',    # filter either taxon or plantlistID 
-    #'georef': 'a',                     # Access by others (a = published, c = obscured, r = private, z = unpublished)
-    'maxResults': 0,                   # leave off for default (2000) or set to 0 for unlimited
-    'dateAfter': dateafter,
-    #'dateBefore': '2025-05-31',
-    'csetId': '379', #define Column Set 136=OC Form, 379=OC API columns
-    #'plantlistId': 'px3845',          # NROC 2023-27 Treatment Priority 1 & 2; filter either taxon or plantlistID 
-    'observer': observerstr,
-    #'myrec': 'true',                # Only My Records: only return records owned by the current user     
-    'shapeId': polyID,          # 'shapeId' in Shape Editor or 'rid' in Calflora link
-    'groupIds': grpID, #140 = OCP Plantopia, 250 = OC CG Group
-    'projectIds': prjID,
-    'includeGeometry': 'true',
-    'formatResults': 'true'
-}
-
-response = requests.get(url, params=params, headers=headers)
- 
+# fuction to address ranges and other text in number of plants field, convert to integer
 def process_number_of_plants(value):
     # If the value is a range (e.g., "5-10"), calculate the mid number
     if isinstance(value, str) and '-' in value:
@@ -169,8 +137,27 @@ def process_number_of_plants(value):
         return re.sub(r'^\D+', '', value), value  # Return the cleaned value and original value
     else:
         return value, None  # Return the value and None if it's not a range or special format
- 
-print(params)
+
+# set query parameters for observation data
+url = 'https://api.calflora.org/observations'
+params = {
+    #'taxon': 'Cynara cardunculus',    # filter either taxon or plantlistID 
+    #'georef': 'a',                     # Access by others (a = published, c = obscured, r = private, z = unpublished)
+    'maxResults': 0,                   # leave off for default (2000) or set to 0 for unlimited
+    'dateAfter': dateafter,
+    #'dateBefore': '2025-05-31',
+    'csetId': '379', #define Column Set 136=OC Form, 379=OC API columns
+    #'plantlistId': 'px3845',          # NROC 2023-27 Treatment Priority 1 & 2; filter either taxon or plantlistID 
+    'observer': observerstr,
+    #'myrec': 'true',                # Only My Records: only return records owned by the current user     
+    'shapeId': polyID,          # 'shapeId' in Shape Editor or 'rid' in Calflora link
+    'groupIds': grpID, #140 = OCP Plantopia, 250 = OC CG Group
+    'projectIds': prjID,
+    'includeGeometry': 'true',
+    'formatResults': 'true'
+}
+# Query API for observation data
+response = requests.get(url, params=params, headers=headers)
 # Check if the request was successful
 if response.status_code == 200:
     data = response.json()
@@ -224,6 +211,7 @@ if response.status_code == 200:
     errors=AutoDict() #records missing info
     verifies=AutoDict() #records that might need fixes
     observers=set()
+    # check for records without a root record
     for i,f in features.items():
         if not f["Root"]:
             found=False
@@ -233,7 +221,7 @@ if response.status_code == 200:
             if not found:
                 verifies[i]['unstacked']=True
         observers.add(f["Observer"])
-
+    # test for other missing info and build arrays of records with errors
     for i,f in features.items():
         if f["Polygon"] != 'Polygon':
             errors[i]['polygon']=True
@@ -253,7 +241,7 @@ if response.status_code == 200:
             verifies[i]['weedname']=True
         observers.add(f["Observer"])
 
-
+    # function to take error data and put it into an html file for display
     def buildreport(sortcriteria):
         # start html file
         html_content='<HTML><HEAD><TITLE>'+sortcriteria+' QA/QC since '+dateafter+'</TITLE></HEAD><BODY><H1>ERRORS for '+sortcriteria+' QA/QC since '+dateafter+'</H1>Please fix all errors listed below. This report is running the following tests:<UL><LI>polygon was created<LI>observation is not in TEMPORARY project<LI>gross area is calculated<LI>either net area or percent cover recorded<LI>plant count recorded<LI>mechanical method set if manually treated<LI>percent treated recorded if mechanical or chemical method set</UL>'
@@ -315,11 +303,12 @@ if response.status_code == 200:
         file_name = "_".join(component for component in file_name_components if component is not None)[:200]  # Truncate to avoid long file names
         savefile = f'{downloadpath}/{file_name}.html'
      
-        # Save the data to the specified JSON file
+        # Save the data to the specified HTML file
         with open(savefile, 'w', encoding='utf-8') as html_file:
             html_file.write(html_content) 
         print(f"Data saved to {savefile}")
 
+    # build reports based on criteria set in beginning, for the project, for the shape or one for each observer/user
     if(prjID):
         buildreport(prjID)
     elif(polyID):
