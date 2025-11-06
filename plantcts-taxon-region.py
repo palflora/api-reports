@@ -2,6 +2,7 @@ import json
 import requests
 import datetime
 import re
+import os
  
 # report purpose
 print('Summary of plants treated by year for each population in a region of a single taxon')
@@ -184,7 +185,7 @@ if response.status_code == 200:
                 treatment=True
             else:
                 treatment=False
-            print(str(treatment)+' '+str(f["ID"])+' '+str(rootid) + ' ' +str(yr) + ': ' +str(f["Number of Plants"]))
+            # print(str(treatment)+' '+str(f["ID"])+' '+str(rootid) + ' ' +str(yr) + ': ' +str(f["Number of Plants"]))
             # for treatment records add them all for the year
             if(treatment):
                 yearswdata[rootid][yr]['trt']=True
