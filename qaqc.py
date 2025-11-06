@@ -4,6 +4,11 @@ import datetime
 import os
 import re
 
+# This report was developed based on the Orange County Weeds form
+# Purpose is to find missing fields that are important for OC
+# it also identifies unstacked observations, and observations
+# of plants not in the Orange County priority weed list
+
 print('Running QA/QC tests...')
 # Prompt the user for their API key
 api_key = input("Please enter your Calflora-API-Key: ")
@@ -86,7 +91,8 @@ class AutoDict(dict):
         self[k] = AutoDict()
         return self[k]
 
-# Get list of weed taxon
+# Get list of weed taxon on OC Priority weed list
+# replace plant list ID at end of url to modify for another plant list
 url = 'https://api.calflora.org/plantlists/px2896'
 params = {
     'includePlants': 'true',
