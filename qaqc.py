@@ -316,7 +316,7 @@ if response.status_code == 200:
 
     # build reports based on criteria set in beginning, for the project, for the shape or one for each observer/user
     if(prjID):
-        buildreport(prjID)
+        buildreport(prjID+' - '+projectname)
     elif(polyID):
         buildreport(polyID)
     else:
