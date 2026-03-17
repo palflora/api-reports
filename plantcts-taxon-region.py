@@ -12,9 +12,9 @@ api_key = input("Please enter your Calflora-API-Key: ")
 grpID=140
 
 # create folder to save output files
-if not os.path.exists('data'):
-    os.mkdir('data')
-downloadpath='data'
+if not os.path.exists('project-reports'):
+    os.mkdir('project-reports')
+downloadpath='project-reports'
 
 headers = {
     'accept': 'application/geo+json',
@@ -205,7 +205,7 @@ if response.status_code == 200:
             # if no treatment report the largest plant count
             
     # start html file
-    html_content='<HTML><HEAD></HEAD><BODY><H3>Total Plants Found by Population and Year for '+taxonname+' in '+polygonname +' ('+polyID+')</H3><BR>- = no data<BR>x = no plant count recorded<BR>treat = total of all plant counts for all treatment records that year<BR>nt = the max plant count recorded that year in an observation without treatment<BR><SPAN STYLE="background-color:lightgreen">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</SPAN> = year with no plants observed<TABLE PADDING="3" BORDER="1"><TR><TH>Root</TH><TH>Ref Poly</TH>'
+    html_content='<HTML><HEAD></HEAD><BODY><H3>Total Plants Found by Population and Year for '+taxonname+' in '+polygonname +' ('+polyID+')</H3><BR>- = no data<BR>x = no plant count recorded<BR>treat = total of all plant counts for all treatment records that year<BR>nt = the max plant count recorded that year in an observation without treatment<BR><SPAN STYLE="background-color:lightgreen">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</SPAN> = year with no plants observed<BR><SPAN STYLE="background-color:yellow">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</SPAN> = year confirmed population not managed<TABLE PADDING="3" BORDER="1"><TR><TH>Root</TH><TH>Ref Poly</TH>'
     # sort years in order
     oyears=sorted(years)
     pops_todate=pops_treated=pops_monitored={}
@@ -221,6 +221,8 @@ if response.status_code == 200:
     curryr=0
     # loop through totals to create data in a table with links to calflora.org 
     for i in pops_all:
+        # track when a population started having a plant count
+        hascount=False
         if(features.get(i, {}).get('Reference Polygon')):
             refpolygon='Y'
         else:
@@ -237,26 +239,35 @@ if response.status_code == 200:
             if(popct_treat[i].get(y)==0):
                 if(str(popct_nt[i].get(y))=='None' or popct_nt[i].get(y)==0):
                     grncell='STYLE="background-color:lightgreen"'
+                    hascount=False
             elif(popct_nt[i].get(y)==0):
                 if(str(popct_treat[i].get(y))=='None' or popct_treat[i].get(y)==0):
                     grncell=' STYLE="background-color:lightgreen"'
+                    hascount=False
             else:
                 grncell=''
-            html_content+='<TD'+grncell+'>'
+
             if(str(popct_treat[i].get(y))!='None'):
-                html_content+=str(popct_treat[i].get(y))
+                trt_count=str(popct_treat[i].get(y))
+                hascount=True
                 pops_treated[y]+=1
             elif yearswdata[i][y]['trt']:
-                html_content+='x'
+                trt_count='x'
             else:
-                html_content+='-'
-            html_content+='</TD><TD'+grncell+'>'
+                trt_count='-'
+                # want to highlight untreated sites
+                # need to establish when pop has plant count - any years from then on with no treatment = untreated, unless you get a zero count, which resets that population
+                if hascount:
+                    grncell=' STYLE="background-color:yellow"'
+
             if(str(popct_nt[i].get(y))!='None'):
-                html_content+=str(popct_nt[i].get(y))
+                nt_count=str(popct_nt[i].get(y))
             elif yearswdata[i][y]['nt']:
-                html_content+='x'
+                nt_count='x'
             else:
-                html_content+='-'
+                nt_count='-'
+
+            html_content+='</TD><TD'+grncell+'>'+trt_count+'<TD'+grncell+'>'+nt_count
         html_content+='</TD></TR>'
     # show totals by year
     html_content+='<TR><TH COLSPAN="2">Total Pops</TH>'
