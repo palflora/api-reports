@@ -93,7 +93,7 @@ class AutoDict(dict):
 
 # Get list of weed taxon on OC Priority weed list
 # replace plant list ID at end of url to modify for another plant list
-url = 'https://api.calflora.org/plantlists/px2896'
+url = 'https://api.calflora.org/plantlists/px5100'
 params = {
     'includePlants': 'true',
 }
@@ -112,12 +112,12 @@ dateafter=''
 while(not dateafter):
 	dateafter = input("Start date for finding errors (YYYY-MM-DD): ")
 
-# create folders to store results in like "/output/YYYY-MM-DD/"
-if not os.path.exists('output'):
-    os.mkdir('output')
-if not os.path.exists('output/'+dateafter):
-    os.mkdir('output/'+dateafter)
-downloadpath='output/'+dateafter
+# create folders to store results in like "/qaqc-reports/YYYY-MM-DD/"
+if not os.path.exists('qaqc-reports'):
+    os.mkdir('qaqc-reports')
+if not os.path.exists('qaqc-reports/'+dateafter):
+    os.mkdir('qaqc-reports/'+dateafter)
+downloadpath='qaqc-reports/'+dateafter
 
 # fuction to address ranges and other text in number of plants field, convert to integer
 def process_number_of_plants(value):
@@ -187,6 +187,7 @@ if response.status_code == 200:
  
         features[item["id"]] = {
                 "ID": item['id'],
+                "Access": item['properties'].get('Access'),
                 "Polygon": item['geometry'].get('type', None),
                 "Observer": item['properties'].get('Observer', None),
                 "ProjectID": item['properties'].get('Project #', None),
@@ -228,7 +229,11 @@ if response.status_code == 200:
                 verifies[i]['unstacked']=True
         observers.add(f["Observer"])
     # test for other missing info and build arrays of records with errors
+    ct=0
     for i,f in features.items():
+        ct+=1
+        if(i=='io175767'):
+            print(i+"\r\n")
         if f["Polygon"] != 'Polygon':
             errors[i]['polygon']=True
         if not f["Gross Area"]:
@@ -243,15 +248,18 @@ if response.status_code == 200:
             errors[i]['PercTrt']=True
         if f["ProjectID"]=='pr785':
             errors[i]['project']=True
+        if f["Access"]=='unpublished':
+            errors[i]['access']=True
         if f["Taxon"] not in ocweednames:
             verifies[i]['weedname']=True
         observers.add(f["Observer"])
-
+    # print(f"count: {ct}")
+    # print(errors)
     # function to take error data and put it into an html file for display
     def buildreport(sortcriteria):
         # start html file
-        html_content='<HTML><HEAD><TITLE>'+sortcriteria+' QA/QC since '+dateafter+'</TITLE></HEAD><BODY><H1>ERRORS for '+sortcriteria+' QA/QC since '+dateafter+'</H1>Please fix all errors listed below. This report is running the following tests:<UL><LI>polygon was created<LI>observation is not in TEMPORARY project<LI>gross area is calculated<LI>either net area or percent cover recorded<LI>plant count recorded<LI>mechanical method set if manually treated<LI>percent treated recorded if mechanical or chemical method set</UL>'
-        html_content+='<TABLE PADDING="3" BORDER="1"><TR><TH>ID</TH><TH>Date</TH><TH>Observer</TH><TH>Taxon</TH><TH>Project</TH><TH>Polygon</TH><TH>Area</TH><TH>Plant Ct</TH><TH>Treatment Info</TH></TR>'   
+        html_content='<HTML><HEAD><TITLE>'+sortcriteria+' QA/QC since '+dateafter+'</TITLE></HEAD><BODY><H1>ERRORS for '+sortcriteria+' QA/QC since '+dateafter+'</H1>Please fix all errors listed below. This report is running the following tests:<UL><LI>polygon was created<LI>observation is not in TEMPORARY project<LI>observation is published<LI>gross area is calculated<LI>either net area or percent cover recorded<LI>plant count recorded<LI>mechanical method set if manually treated<LI>percent treated recorded if mechanical or chemical method set</UL>'
+        html_content+='<TABLE PADDING="3" BORDER="1"><TR><TH>ID</TH><TH>Date</TH><TH>Observer</TH><TH>Taxon</TH><TH>Project</TH><TH>Access</TH><TH>Polygon</TH><TH>Area</TH><TH>Plant Ct</TH><TH>Treatment Info</TH></TR>'   
         # loop through errors to create data in a table with links to calflora.org 
         for i,f in errors.items():
             # projects and polygons create 1 report, default option produces 1 report for each observer name so need to test match if other vars empty
@@ -263,6 +271,9 @@ if response.status_code == 200:
                 html_content+='</TD><TD>'+features[i].get('Project','-')
                 if(errors[i]['project']):
                     html_content+='<DIV STYLE="color:red">Needs to be moved to different Project</DIV>'
+                html_content+='</TD><TD>'+features[i].get('Access')
+                if(errors[i]['access']):
+                    html_content+='<DIV STYLE="color:red">Need to Publish</DIV>'
                 html_content+='</TD><TD>'
                 if(errors[i]['polygon']):
                     html_content+='<DIV STYLE="color:red">Missing Polygon</DIV>'
