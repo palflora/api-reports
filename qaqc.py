@@ -148,7 +148,7 @@ def process_number_of_plants(value):
 url = 'https://api.calflora.org/observations'
 params = {
     #'taxon': 'Cynara cardunculus',    # filter either taxon or plantlistID 
-    #'georef': 'a',                     # Access by others (a = published, c = obscured, r = private, z = unpublished)
+    'georef': 'any',           # Access by others (a = published, c = obscured, r = private, z = unpublished)
     'maxResults': 0,                   # leave off for default (2000) or set to 0 for unlimited
     'dateAfter': dateafter,
     #'dateBefore': '2025-05-31',
