@@ -14,7 +14,7 @@ print('Running QA/QC tests...')
 api_key = input("Please enter your Calflora-API-Key: ")
 
  
-grpID=162 # 162 = Weed Manager Demonstration group
+grpID=140 # 162 = Weed Manager Demonstration group
 headers = {
     'accept': 'application/geo+json',
     'X-API-Key': api_key
@@ -119,7 +119,7 @@ if not os.path.exists('qaqc-reports/'+dateafter):
     os.mkdir('qaqc-reports/'+dateafter)
 downloadpath='qaqc-reports/'+dateafter
 
-# fuction to address ranges and other text in number of plants field, convert to integer
+# function to address ranges and other text in number of plants field, convert to integer
 def process_number_of_plants(value):
     # If the value is a range (e.g., "5-10"), calculate the mid number
     if isinstance(value, str) and '-' in value:
@@ -191,7 +191,7 @@ if response.status_code == 200:
                 "Polygon": item['geometry'].get('type', None),
                 "Observer": item['properties'].get('Observer', None),
                 "ProjectID": item['properties'].get('Project #', None),
-                "Project": item['properties'].get('Project', None),
+                "Project": item['properties'].get('Project', 'Unknown'),
                 "Taxon": item['properties'].get('Taxon', None),
                 "Common Name": item['properties'].get('Common Name', None),
                 "Date_Time": item['properties'].get('Date / Time', None),
@@ -236,18 +236,25 @@ if response.status_code == 200:
             print(i+"\r\n")
         if f["Polygon"] != 'Polygon':
             errors[i]['polygon']=True
-        if not f["Gross Area"]:
+        if not f["Gross Area"] and f["Number of Plants"] != 0:
             errors[i]['gross']=True
         if not f["Number of Plants"] and f["Number of Plants"]!=0:
             errors[i]['plantct']=True
         if not f["Percent Cover"] and not f["Infested Area Count"]:
-            errors[i]['infested']=True
+            if f["Number of Plants"] and f["Number of Plants"] > 0:
+                errors[i]['infested']=True
+            elif f["Percent Cover"]!=0 and f["Infested Area Count"]!=0:
+                  errors[i]['infested']=True              
         if f["Manual Treatment?"] and not f["Mechanical Method"]:
             errors[i]['Mechanical']=True
         if (f["Mechanical Method"] or f["Chemical Method"]) and not f["Percent Treated"]:
             errors[i]['PercTrt']=True
         if f["ProjectID"]=='pr785':
-            errors[i]['project']=True
+            errors[i]['project1']=True
+        if not f["Project"]:
+            errors[i]['project2']=True
+        if not f["ProjectID"]:
+            errors[i]['projectid']=True
         if f["Access"]=='unpublished':
             errors[i]['access']=True
         if f["Taxon"] not in ocweednames:
@@ -268,9 +275,16 @@ if response.status_code == 200:
                 if i in verifies:
                     if verifies[i]['weedname']==True:
                         html_content+='<DIV STYLE="color:red">(taxon not in priority weed list)</DIV>'
-                html_content+='</TD><TD>'+features[i].get('Project','-')
-                if(errors[i]['project']):
+                if features[i].get('Project') is not None:
+                    html_content+='</TD><TD>'+features[i].get('Project','-')
+                else:
+                    html_content+='</TD><TD>-'
+                if(errors[i]['project1']):
                     html_content+='<DIV STYLE="color:red">Needs to be moved to different Project</DIV>'
+                if(errors[i]['project2']):
+                    html_content+='<DIV STYLE="color:red">Missing Project Name</DIV>'
+                if(errors[i]['projectid']):
+                    html_content+='<DIV STYLE="color:red">Missing Project ID</DIV>'
                 html_content+='</TD><TD>'+features[i].get('Access')
                 if(errors[i]['access']):
                     html_content+='<DIV STYLE="color:red">Need to Publish</DIV>'
