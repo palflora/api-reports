@@ -148,7 +148,7 @@ def process_number_of_plants(value):
 url = 'https://api.calflora.org/observations'
 params = {
     #'taxon': 'Cynara cardunculus',    # filter either taxon or plantlistID 
-    'georef': 'any',           # Access by others (a = published, c = obscured, r = private, z = unpublished)
+    'georef': 'any',           # Access by others (a = published, c = obscured, r = private, z = unpublished) should default to all, but using 'any' flag for now to ensure we get all
     'maxResults': 0,                   # leave off for default (2000) or set to 0 for unlimited
     'dateAfter': dateafter,
     #'dateBefore': '2025-05-31',
@@ -190,6 +190,7 @@ if response.status_code == 200:
                 "Access": item['properties'].get('Access'),
                 "Polygon": item['geometry'].get('type', None),
                 "Observer": item['properties'].get('Observer', None),
+                "UserID": item['properties'].get('User #', None),
                 "ProjectID": item['properties'].get('Project #', None),
                 "Project": item['properties'].get('Project', 'Unknown'),
                 "Taxon": item['properties'].get('Taxon', None),
@@ -218,6 +219,7 @@ if response.status_code == 200:
     errors=AutoDict() #records missing info
     verifies=AutoDict() #records that might need fixes
     observers=set()
+    users=set()
     # check for records without a root record
     for i,f in features.items():
         if not f["Root"]:
@@ -228,12 +230,13 @@ if response.status_code == 200:
             if not found:
                 verifies[i]['unstacked']=True
         observers.add(f["Observer"])
+        users.add(f["UserID"])
     # test for other missing info and build arrays of records with errors
     ct=0
     for i,f in features.items():
         ct+=1
-        if(i=='io175767'):
-            print(i+"\r\n")
+        #if(i=='io175767'):
+        #   print(i+"\r\n")
         if f["Polygon"] != 'Polygon':
             errors[i]['polygon']=True
         if not f["Gross Area"] and f["Number of Plants"] != 0:
@@ -259,18 +262,27 @@ if response.status_code == 200:
             errors[i]['access']=True
         if f["Taxon"] not in ocweednames:
             verifies[i]['weedname']=True
-        observers.add(f["Observer"])
     # print(f"count: {ct}")
     # print(errors)
     # function to take error data and put it into an html file for display
     def buildreport(sortcriteria):
+        # if sorted by observe name, organize by user (record owner) name
+        if type(sortcriteria) is int:
+            unamearr = requests.get('https://api.calflora.org/users/'+str(sortcriteria), {}, headers=headers)
+            # check response is valid
+            if unamearr.status_code == 200:
+                uinfo=unamearr.json()
+                sortcriteria=uinfo['name']
+            else:
+                print(f"Error: {unamearr.status_code}")
+        print(f"sortcriteria= {sortcriteria}")
         # start html file
         html_content='<HTML><HEAD><TITLE>'+sortcriteria+' QA/QC since '+dateafter+'</TITLE></HEAD><BODY><H1>ERRORS for '+sortcriteria+' QA/QC since '+dateafter+'</H1>Please fix all errors listed below. This report is running the following tests:<UL><LI>polygon was created<LI>observation is not in TEMPORARY project<LI>observation is published<LI>gross area is calculated<LI>either net area or percent cover recorded<LI>plant count recorded<LI>mechanical method set if manually treated<LI>percent treated recorded if mechanical or chemical method set</UL>'
         html_content+='<TABLE PADDING="3" BORDER="1"><TR><TH>ID</TH><TH>Date</TH><TH>Observer</TH><TH>Taxon</TH><TH>Project</TH><TH>Access</TH><TH>Polygon</TH><TH>Area</TH><TH>Plant Ct</TH><TH>Treatment Info</TH></TR>'   
         # loop through errors to create data in a table with links to calflora.org 
         for i,f in errors.items():
             # projects and polygons create 1 report, default option produces 1 report for each observer name so need to test match if other vars empty
-            if prjID or polyID or obs==features[i].get('Observer'):
+            if prjID or polyID or uid==features[i].get('UserID'):
                 html_content+='<TR><TD><A HREF="https://www.calflora.org/entry/poe.html#vrid='+i+'">'+i+'</A></TD><TD>'+features[i].get('Date_Time','-')+'</TD><TD>'+features[i].get('Observer','-')+'</TD><TD>'+features[i].get('Taxon','-')
                 if i in verifies:
                     if verifies[i]['weedname']==True:
@@ -309,7 +321,7 @@ if response.status_code == 200:
         html_content+='</TABLE><H1>WARNINGS for '+sortcriteria+' QA/QC since '+dateafter+'</H1>These warnings may or may not need fixing. This report is running the following tests:<UL><LI>checking to see if record is in a history stack, if it is a new population than that is okay<LI>checking to see if taxon is on OC priority weed list - please ensure that weed names match version on the plant list. Warnings for plants not on the OC priority weed list can be ignored.</UL>'
         html_content+='<TABLE PADDING="3" BORDER="1"><TR><TH>ID</TH><TH>Date</TH><TH>Observer</TH><TH>Taxon</TH></TR>' 
         for i,f in verifies.items():
-            if prjID or polyID or obs==features[i].get('Observer'):
+            if prjID or polyID or uid==features[i].get('UserID'):
                 html_content+='<TR><TD><A HREF="https://www.calflora.org/entry/poe.html#vrid='+i+'">'+i+'</A>'
                 if verifies[i]['unstacked']==True:
                     html_content+='<DIV STYLE="color:red">(not stacked)</DIV>'
@@ -344,9 +356,11 @@ if response.status_code == 200:
         buildreport(prjID+' - '+projectname)
     elif(polyID):
         buildreport(polyID)
+    elif not observers:
+        print(f"No observer names matched the string: {observerstr}")
     else:
-        for obs in observers:
-            buildreport(obs)
+        for uid in users:
+            buildreport(uid)
 
 else:
     print(f"Error: {response.status_code}")
